@@ -1,41 +1,75 @@
 #!/usr/bin/env python
 
-class AClass(object):
-	def __init__(self):
-		self.d = 1
+class MailEvent(object):
+   def fire(self, instance, cls):
+      print "handling mail event from " + str(cls.__name__) + " " + str(instance.name)
 
-	def method(self, arg):
-		print arg
+class LogEvent(object):
+   def fire(self, instance, cls):
+      print "handling log event from " + str(cls.__name__) + " " + str(instance.name)
 
-aObj = AClass()
+# using inheritance
+class BaseWorker(object):
+   def __init__(self, name):
+      self.name = name
+      self.event_factory = {"mail":MailEvent(), "log":LogEvent()}
 
-# normal usage
-print aObj.d
-aObj.method("hello")
+   def event(self, evt):
+      if evt in self.event_factory:
+         self.event_factory[evt].fire(self, type(self))
 
-# whole story of instance variable
-print aObj.__dict__['d']
-# why we need self as first parameter in method
-type(aObj).method(aObj, "hello")
+class Worker(BaseWorker):
+   pass
 
-# how does the python find method
-type(aObj).__dict__['method'](aObj, "hello")
+worker = Worker("SIMPLE")
+worker.event("mail")
+worker.event("log")
 
-# whole story of how the method be implemented by descriptor mechanism
-type(aObj).__dict__['method'].__get__(aObj, type(aObj))("hello")
+##### delegation approach #####
+# naive way
+class EventProxyA(object):
+   def __init__(self):
+      self.event_factory = {"mail":MailEvent(), "log":LogEvent()}
 
-class Proxy(object):
-	def __get__(self, instance, cls):
-		def handle():
-			# access caller's info without passing any parameter
-			return str(cls.__name__) + " " + str(instance.name) + " happpy~"
-		return handle;
+   def handle_event(self, evt, instance, cls):
+      if evt in self.event_factory:
+         self.event_factory[evt].fire(instance, cls)
 
-class Host(object):
-	proxy = Proxy()
+class BaseWorkerA(object):
+   def __init__(self, name):
+      self.name = name
+      self.event_proxy = EventProxyA()
+
+   def event(self, evt):
+      self.event_proxy.handle_event(evt, self, type(self))
+
+class WorkerA(BaseWorkerA):
+   pass
+
+worker = WorkerA("SIMPLE_A")
+worker.event("mail")
+worker.event("log")
+
+# dafe's approach
+class EventProxyB(object):
+   def __init__(self):
+      self.event_factory = {"mail":MailEvent(), "log":LogEvent()}
+
+   def __get__(self, instance, cls):
+      def handle(evt):
+         if evt in self.event_factory:
+            # access caller's info without passing any parameter
+            self.event_factory[evt].fire(instance, cls)
+      return handle;
+
+class BaseWorkerB(object):
+	event = EventProxyB()
 	def __init__(self, name):
 		self.name = name
 
-host = Host("ERS")
-print host.proxy()
-print Host.__dict__['proxy'].__get__(host, Host)()
+class WorkerB(BaseWorkerB):
+   pass
+
+worker = WorkerB("SIMPLE_B")
+worker.event("mail")
+Worker.__dict__['event'].__get__(worker, Worker)("mail")
