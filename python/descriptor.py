@@ -50,7 +50,7 @@ worker = WorkerA("SIMPLE_A")
 worker.event("mail")
 worker.event("log")
 
-# dafe's approach
+# using descriptor
 class EventProxyB(object):
    def __init__(self):
       self.event_factory = {"mail":MailEvent(), "log":LogEvent()}
